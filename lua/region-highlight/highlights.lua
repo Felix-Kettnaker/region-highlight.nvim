@@ -2,6 +2,13 @@ local M = {}
 
 local NS = vim.api.nvim_create_namespace("region_highlight")
 
+-- Per-buffer row→hl_name lookup, rebuilt on each apply().
+-- Only rows inside a region have an entry; others are nil.
+local _row_to_hl = {}
+
+-- Per-window cursor row cache, populated in on_win to avoid per-line API calls.
+local _win_cursor = {}
+
 --- Parse a 24-bit integer color into R, G, B components
 ---@param color integer
 ---@return integer, integer, integer
@@ -64,10 +71,15 @@ end
 --- Clear all region highlights from a buffer
 ---@param bufnr integer
 function M.clear(bufnr)
+  _row_to_hl[bufnr] = nil
   vim.api.nvim_buf_clear_namespace(bufnr, NS, 0, -1)
 end
 
---- Apply region highlights to a buffer
+--- Apply region highlights to a buffer.
+--- Builds an internal row→hl_name map used by the decoration provider.
+--- No persistent extmarks are created; highlights are rendered ephemerally
+--- per-line so that higher-priority decorations (CursorLine, colorizer, etc.)
+--- always override the region background.
 ---@param bufnr integer
 ---@param regions table[] from regions.parse()
 ---@param opts table config options
@@ -119,19 +131,77 @@ function M.apply(bufnr, regions, opts)
     end
   end
 
-  -- Apply extmarks
-  for _, region in ipairs(regions) do
+  -- Build row→hl_name lookup (used by the decoration provider).
+  -- Deeper regions overwrite shallower ones for the same row, so the innermost
+  -- region's color is applied at cells shared by nested regions.
+  local row_map = {}
+  local sorted = vim.deepcopy(regions)
+  table.sort(sorted, function(a, b) return a.depth < b.depth end)
+  for _, region in ipairs(sorted) do
     local info = region_colors[region.encounter_index]
     if info then
       for row = region.start_line, region.end_line do
-        vim.api.nvim_buf_set_extmark(bufnr, NS, row, 0, {
-          end_row = row,
-          line_hl_group = info.hl_name,
-          priority = 10 + region.depth,
-        })
+        row_map[row] = info.hl_name
       end
     end
   end
+
+  _row_to_hl[bufnr] = row_map
+end
+
+--- Return the row→hl_name map for a buffer (for testing / introspection).
+---@param bufnr integer
+---@return table<integer,string>|nil
+function M.get_row_map(bufnr)
+  return _row_to_hl[bufnr]
+end
+
+--- Register the decoration provider (call once at plugin setup).
+--- The provider renders region backgrounds ephemerally each frame, skipping
+--- the cursor row so that CursorLine can show through unobstructed.
+function M.setup_provider()
+  vim.api.nvim_set_decoration_provider(NS, {
+    on_win = function(_, winid, bufnr, _topline, _botline)
+      if not _row_to_hl[bufnr] then
+        return false -- no regions → skip on_line for this window
+      end
+      -- Only skip the cursor row when 'cursorline' is actually enabled;
+      -- otherwise all rows should be tinted and -1 never matches a real row.
+      if vim.wo[winid].cursorline then
+        local ok, cursor = pcall(vim.api.nvim_win_get_cursor, winid)
+        _win_cursor[winid] = ok and (cursor[1] - 1) or -1
+      else
+        _win_cursor[winid] = -1
+      end
+    end,
+
+    on_line = function(_, winid, bufnr, row)
+      local row_map = _row_to_hl[bufnr]
+      if not row_map then return end
+      local hl_name = row_map[row]
+      if not hl_name then return end
+
+      -- Skip the cursor row: leaving it un-highlighted means the cell bg
+      -- matches Normal, which triggers Neovim's special-case in drawline.c
+      -- that lets line_attr_lowprio (CursorLine) take precedence.
+      if _win_cursor[winid] == row then return end
+
+      vim.api.nvim_buf_set_extmark(bufnr, NS, row, 0, {
+        end_row = row + 1,
+        end_col = 0,
+        hl_group = hl_name,
+        hl_eol = true,
+        priority = 10, -- below syntax (50), treesitter (100), etc.
+        ephemeral = true,
+      })
+    end,
+  })
+end
+
+--- Remove cached window state (call on WinClosed).
+---@param winid integer
+function M.clear_win(winid)
+  _win_cursor[winid] = nil
 end
 
 return M

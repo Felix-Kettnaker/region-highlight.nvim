@@ -1,13 +1,14 @@
 #include <stdio.h>
 
 int main() {
-    // #region fold 123
+    // #region with comment text
     // #region
+    // nested region
     // #endregion
     printf("Hello World\n");
-    // #endregion 123
+    // #endregion comment doesn't need to match
     
-    // #region
+    // #region fold folded on initial open
     // #endregion
     return 0;
 }

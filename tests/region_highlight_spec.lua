@@ -152,7 +152,7 @@ describe("region-highlight.highlights", function()
     vim.api.nvim_buf_delete(bufnr, { force = true })
   end)
 
-  it("apply() respects colors=false (no highlights applied)", function()
+  it("apply() respects colors=false (no row map built)", function()
     config.setup({ colors = false })
     local bufnr = make_buf({
       "-- #region",
@@ -162,14 +162,11 @@ describe("region-highlight.highlights", function()
     local rs = regions.parse(bufnr)
     highlights.apply(bufnr, rs, config.options)
 
-    local ns = vim.api.nvim_get_namespaces()["region_highlight"]
-    assert.is_not_nil(ns)
-    local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
-    assert.are.equal(0, #marks)
+    assert.is_nil(highlights.get_row_map(bufnr))
     vim.api.nvim_buf_delete(bufnr, { force = true })
   end)
 
-  it("apply() creates extmarks for regions with custom colors", function()
+  it("apply() builds row map covering all region lines with custom colors", function()
     config.setup({ colors = { "#FF0000", "#00FF00" } })
     local bufnr = make_buf({
       "-- #region",
@@ -179,15 +176,18 @@ describe("region-highlight.highlights", function()
     local rs = regions.parse(bufnr)
     highlights.apply(bufnr, rs, config.options)
 
-    local ns = vim.api.nvim_get_namespaces()["region_highlight"]
-    assert.is_not_nil(ns)
-    local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
-    -- 3 lines in the region = 3 extmarks
-    assert.are.equal(3, #marks)
+    local row_map = highlights.get_row_map(bufnr)
+    assert.is_not_nil(row_map)
+    -- 3 lines in the region (rows 0, 1, 2) all mapped
+    assert.is_not_nil(row_map[0])
+    assert.is_not_nil(row_map[1])
+    assert.is_not_nil(row_map[2])
+    -- row 3 is outside → no entry
+    assert.is_nil(row_map[3])
     vim.api.nvim_buf_delete(bufnr, { force = true })
   end)
 
-  it("clear() removes all extmarks", function()
+  it("clear() removes the row map", function()
     config.setup({ colors = { "#FF0000" } })
     local bufnr = make_buf({
       "-- #region",
@@ -196,35 +196,39 @@ describe("region-highlight.highlights", function()
     })
     local rs = regions.parse(bufnr)
     highlights.apply(bufnr, rs, config.options)
+    assert.is_not_nil(highlights.get_row_map(bufnr))
     highlights.clear(bufnr)
-
-    local ns = vim.api.nvim_get_namespaces()["region_highlight"]
-    local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
-    assert.are.equal(0, #marks)
+    assert.is_nil(highlights.get_row_map(bufnr))
     vim.api.nvim_buf_delete(bufnr, { force = true })
   end)
 
-  it("cycles colors by encounter_index", function()
+  it("cycles colors by encounter_index and maps all lines", function()
     config.setup({ colors = { "#FF0000", "#00FF00" } })
     local bufnr = make_buf({
-      "-- #region first",
-      "local x = 1",
-      "-- #endregion",
-      "-- #region second",
-      "local y = 2",
-      "-- #endregion",
-      "-- #region third", -- should wrap to color[1] = #FF0000
-      "local z = 3",
-      "-- #endregion",
+      "-- #region first",  -- row 0
+      "local x = 1",       -- row 1
+      "-- #endregion",     -- row 2
+      "-- #region second", -- row 3
+      "local y = 2",       -- row 4
+      "-- #endregion",     -- row 5
+      "-- #region third",  -- row 6, wraps to color[1]
+      "local z = 3",       -- row 7
+      "-- #endregion",     -- row 8
     })
     local rs = regions.parse(bufnr)
-    -- Just check it doesn't error and applies marks to all lines
     assert.has_no.errors(function()
       highlights.apply(bufnr, rs, config.options)
     end)
-    local ns = vim.api.nvim_get_namespaces()["region_highlight"]
-    local marks = vim.api.nvim_buf_get_extmarks(bufnr, ns, 0, -1, {})
-    assert.are.equal(9, #marks) -- 3 lines per region × 3 regions
+    local row_map = highlights.get_row_map(bufnr)
+    assert.is_not_nil(row_map)
+    -- All 9 lines should be mapped
+    for row = 0, 8 do
+      assert.is_not_nil(row_map[row], "expected row " .. row .. " to be in row_map")
+    end
+    -- region 1 and 3 share color[1] (encounter_index 1 and 3 → both map to idx 1)
+    assert.are.equal(row_map[0], row_map[6])
+    -- region 2 uses color[2]
+    assert.are_not.equal(row_map[3], row_map[0])
     vim.api.nvim_buf_delete(bufnr, { force = true })
   end)
 end)

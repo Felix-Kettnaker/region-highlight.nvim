@@ -66,6 +66,10 @@ end
 function M.setup(opts)
   config.setup(opts)
 
+  -- Register the decoration provider once; it renders highlights ephemerally
+  -- each frame using the row→hl map populated by highlights.apply().
+  highlights.setup_provider()
+
   local group = vim.api.nvim_create_augroup("RegionHighlight", { clear = true })
 
   -- Primary trigger: FileType fires after filetype is detected and file is read,
@@ -117,11 +121,20 @@ function M.setup(opts)
     end,
   })
 
-  -- Release fold data when buffer is deleted
+  -- Release fold data and highlight map when buffer is deleted
   vim.api.nvim_create_autocmd("BufDelete", {
     group = group,
     callback = function(ev)
       folding.clear_folds(ev.buf)
+      highlights.clear(ev.buf)
+    end,
+  })
+
+  -- Release window cursor cache when a window is closed
+  vim.api.nvim_create_autocmd("WinClosed", {
+    group = group,
+    callback = function(ev)
+      highlights.clear_win(tonumber(ev.match))
     end,
   })
 
