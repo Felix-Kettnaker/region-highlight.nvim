@@ -73,6 +73,11 @@ function M.setup(opts)
     group = group,
     callback = function(ev)
       process_buffer(ev.buf, true)
+      -- BufWinEnter fires BEFORE BufReadPost on initial open, so fold options
+      -- must also be installed here, now that the buffer has a window.
+      if vim.b[ev.buf].region_list then
+        folding.install_fold_options()
+      end
     end,
   })
 
