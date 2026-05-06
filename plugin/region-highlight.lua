@@ -1,0 +1,2 @@
+-- region-highlight.lua
+-- This file is intentionally minimal. Call require('region-highlight').setup() in your config.
