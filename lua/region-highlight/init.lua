@@ -76,11 +76,15 @@ function M.setup(opts)
     end,
   })
 
-  -- When entering a buffer (e.g., switching tabs) - re-apply highlights only
+  -- When entering a buffer (e.g., switching tabs) - re-apply highlights and fold options
   vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
     callback = function(ev)
       local bufnr = ev.buf
+      -- Re-install fold options (window-local, must be set per-window)
+      if vim.b[bufnr].region_fold_data then
+        folding.install_fold_options()
+      end
       if not vim.b[bufnr].region_initial_fold_done then
         -- Buffer was loaded but never got initial fold (e.g., opened in background)
         process_buffer(bufnr, true)
@@ -94,11 +98,14 @@ function M.setup(opts)
     end,
   })
 
-  -- BufWinEnter: apply initial folds when buffer appears in a window
+  -- BufWinEnter: install fold options and apply initial folds when buffer appears in a window
   vim.api.nvim_create_autocmd("BufWinEnter", {
     group = group,
     callback = function(ev)
       local bufnr = ev.buf
+      if vim.b[bufnr].region_fold_data then
+        folding.install_fold_options()
+      end
       local regions = vim.b[bufnr].region_list
       if regions and not vim.b[bufnr].region_initial_fold_done then
         folding.apply_initial_folds(bufnr, regions, config.options)

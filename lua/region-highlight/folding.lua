@@ -48,20 +48,14 @@ function M.setup_folds(bufnr, regions)
 
   -- Store as plain table (not userdata) for vim.b serialization
   vim.b[bufnr].region_fold_data = { starts = starts, levels = levels }
+end
 
-  -- Set buffer-local foldmethod
-  local ok = pcall(function()
-    vim.api.nvim_set_option_value("foldmethod", "expr", { buf = bufnr })
-    vim.api.nvim_set_option_value(
-      "foldexpr",
-      "v:lua.require('region-highlight.folding').foldexpr(v:lnum)",
-      { buf = bufnr }
-    )
-    vim.api.nvim_set_option_value("foldenable", true, { buf = bufnr })
-  end)
-  if not ok then
-    vim.notify("region-highlight: failed to set fold options", vim.log.levels.WARN)
-  end
+--- Set fold options on the current window. Must be called from a window context.
+--- Call this from BufWinEnter or BufEnter autocmds.
+function M.install_fold_options()
+  vim.wo.foldmethod = "expr"
+  vim.wo.foldexpr = "v:lua.require('region-highlight.folding').foldexpr(v:lnum)"
+  vim.wo.foldenable = true
 end
 
 --- Close folds for regions that have fold_on_load = true.
