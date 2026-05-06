@@ -9,14 +9,14 @@ Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregi
 - **Language-aware**: Uses treesitter to detect comment lines; falls back gracefully
 - **Auto-fold**: `#region fold` auto-closes on initial file load only
 - **Customizable colors**: Bring your own palette, or disable coloring entirely
-- **Live refresh**: Highlights update automatically as you edit (debounced 300ms)
+- **Live refresh**: Highlights update automatically as you edit (debounce configurable)
 
 ## Installation
 
 ### lazy.nvim
 ```lua
 {
-  "your-username/region-highlight.nvim",
+  "Felix-Kettnaker/region-highlight.nvim",
   config = function()
     require("region-highlight").setup()
   end,
@@ -34,12 +34,21 @@ void myFunction() {}
 // #endregion
 ```
 
-**Lua / Python / Ruby / Shell:**
+**Lua / Ruby / Shell:**
 ```lua
 -- #region My Section
 local function myFunction() end
 -- #endregion
 ```
+
+**Python** — since `#` is Python's comment character, `#region` alone is enough (no space needed):
+```python
+#region My Section
+def my_function(): pass
+#endregion
+```
+
+The `# #region` form (with a space) also works and matches VS Code's style:
 ```python
 # #region My Section
 def my_function(): pass
@@ -78,6 +87,9 @@ require("region-highlight").setup({
   -- Treat ALL #region markers as #region fold (auto-close everything on load)
   fold_all = false, -- default
 
+  -- Debounce delay (ms) for re-processing after text changes
+  refresh_debounce = 300, -- default
+
   -- Custom background colors, cycled by encounter order across the file.
   -- 3 colors + 4 regions → region 4 gets color 1 again.
   -- colors = { "#1e1e2e", "#1e2e1e", "#2e1e1e" }
@@ -104,13 +116,9 @@ Regions are registered with `foldmethod=expr`. This means:
 - `zR` / `zM` open / close all folds as usual
 - ⚠️ This overrides any other `foldmethod` set for that buffer
 
-## Development / Testing
+## Testing
 
 ```bash
-# Interactive testing (isolated Neovim config)
-NVIM_APPNAME=regionhighlight nvim <file>
-
-# Run test suite
 make test
 ```
 

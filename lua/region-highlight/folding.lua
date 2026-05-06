@@ -81,8 +81,9 @@ function M.install_fold_options(bufnr)
   end
 end
 
---- Close folds for regions that have fold_on_load = true.
---- Must be called from BufWinEnter (window context required).
+--- Close folds for regions that have fold_on_load = true (or all, when fold_all is set).
+--- Called via vim.schedule from process_buffer, or directly from BufWinEnter when
+--- the buffer was processed before a window existed.
 ---@param bufnr integer
 ---@param regions table[]
 ---@param opts table

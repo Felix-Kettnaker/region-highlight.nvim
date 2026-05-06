@@ -50,7 +50,7 @@ local function schedule_refresh(bufnr)
 
   local timer = vim.uv.new_timer()
   timers[bufnr] = timer
-  timer:start(300, 0, vim.schedule_wrap(function()
+  timer:start(config.options.refresh_debounce, 0, vim.schedule_wrap(function()
     timers[bufnr] = nil
     if vim.api.nvim_buf_is_valid(bufnr) then
       local regions = regions_mod.parse(bufnr)

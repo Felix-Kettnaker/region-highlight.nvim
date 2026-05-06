@@ -372,6 +372,7 @@ describe("region-highlight.config", function()
     config.setup({})
     assert.are.equal(false, config.options.fold_all)
     assert.is_nil(config.options.colors)
+    assert.are.equal(300, config.options.refresh_debounce)
   end)
 
   it("merges user options over defaults", function()
@@ -379,4 +380,121 @@ describe("region-highlight.config", function()
     assert.are.equal(true, config.options.fold_all)
     assert.are.equal(false, config.options.colors)
   end)
+
+  it("accepts custom refresh_debounce", function()
+    config.setup({ refresh_debounce = 500 })
+    assert.are.equal(500, config.options.refresh_debounce)
+  end)
 end)
+
+-- Regression tests for fold initialization bugs
+describe("region-highlight.folding (regression)", function()
+  local folding = require("region-highlight.folding")
+
+  -- Helper: load a buffer in the current window, returning the previous buffer
+  local function load_in_window(bufnr)
+    local prev = vim.api.nvim_win_get_buf(0)
+    vim.api.nvim_win_set_buf(0, bufnr)
+    return prev
+  end
+
+  describe("install_fold_options()", function()
+    it("sets foldlevel=99 when initial folds not yet applied", function()
+      local bufnr = make_buf({ "-- #region", "local x", "-- #endregion" })
+      vim.wo.foldlevel = 5
+      folding.install_fold_options(bufnr)
+      assert.are.equal("expr", vim.wo.foldmethod)
+      assert.are.equal(99, vim.wo.foldlevel)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("does NOT reset foldlevel when initial folds already applied", function()
+      local bufnr = make_buf({ "-- #region", "local x", "-- #endregion" })
+      vim.b[bufnr].region_initial_fold_done = true
+      vim.wo.foldlevel = 42
+      folding.install_fold_options(bufnr)
+      assert.are.equal("expr", vim.wo.foldmethod)
+      assert.are.equal(42, vim.wo.foldlevel) -- preserved, not reset to 99
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+  end)
+
+  describe("apply_initial_folds()", function()
+    it("closes fold for region with fold_on_load=true", function()
+      local bufnr = make_buf({ "-- #region fold", "local x = 1", "-- #endregion" })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local prev = load_in_window(bufnr)
+      folding.install_fold_options(bufnr)
+      folding.apply_initial_folds(bufnr, rs, { fold_all = false })
+      assert.are.equal(1, vim.fn.foldclosed(1)) -- lnum 1 should be closed
+      vim.api.nvim_win_set_buf(0, prev)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("does not close plain #region when fold_all=false", function()
+      local bufnr = make_buf({ "-- #region", "local x = 1", "-- #endregion" })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local prev = load_in_window(bufnr)
+      folding.install_fold_options(bufnr)
+      folding.apply_initial_folds(bufnr, rs, { fold_all = false })
+      assert.are.equal(-1, vim.fn.foldclosed(1)) -- should remain open
+      vim.api.nvim_win_set_buf(0, prev)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("closes all folds when fold_all=true", function()
+      local bufnr = make_buf({
+        "-- #region",       -- lnum 1
+        "local x = 1",
+        "-- #endregion",
+        "-- #region",       -- lnum 4
+        "local y = 2",
+        "-- #endregion",
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local prev = load_in_window(bufnr)
+      folding.install_fold_options(bufnr)
+      folding.apply_initial_folds(bufnr, rs, { fold_all = true })
+      assert.are.equal(1, vim.fn.foldclosed(1))
+      assert.are.equal(4, vim.fn.foldclosed(4))
+      vim.api.nvim_win_set_buf(0, prev)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("runs only once per buffer (idempotent guard)", function()
+      local bufnr = make_buf({ "-- #region fold", "local x = 1", "-- #endregion" })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local prev = load_in_window(bufnr)
+      folding.install_fold_options(bufnr)
+      folding.apply_initial_folds(bufnr, rs, { fold_all = false })
+      assert.are.equal(1, vim.fn.foldclosed(1)) -- closed
+      vim.cmd("normal! zo")                       -- manually reopen
+      assert.are.equal(-1, vim.fn.foldclosed(1))  -- now open
+      -- second call should be a no-op (done flag set)
+      folding.apply_initial_folds(bufnr, rs, { fold_all = false })
+      assert.are.equal(-1, vim.fn.foldclosed(1))  -- still open
+      vim.api.nvim_win_set_buf(0, prev)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("does not reopen closed folds when install_fold_options is called again after done", function()
+      local bufnr = make_buf({ "-- #region fold", "local x = 1", "-- #endregion" })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local prev = load_in_window(bufnr)
+      folding.install_fold_options(bufnr)
+      folding.apply_initial_folds(bufnr, rs, { fold_all = false })
+      assert.are.equal(1, vim.fn.foldclosed(1)) -- closed
+      -- Simulate re-entering buffer (BufEnter) calling install_fold_options again
+      folding.install_fold_options(bufnr)
+      assert.are.equal(1, vim.fn.foldclosed(1)) -- still closed (foldlevel not reset)
+      vim.api.nvim_win_set_buf(0, prev)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+  end)
+end)
+
