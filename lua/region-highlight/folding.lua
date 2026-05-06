@@ -1,11 +1,16 @@
 local M = {}
 
+-- Module-level storage for fold data, keyed by bufnr.
+-- Avoids vim.b msgpack serialization which converts sparse numeric-keyed tables
+-- into arrays padded with vim.NIL (a truthy value that breaks foldexpr checks).
+local _fold_data = {}
+
 --- Called by vim's foldexpr for each line
 ---@param lnum integer 1-indexed line number
 ---@return string fold expression result
 function M.foldexpr(lnum)
   local bufnr = vim.api.nvim_get_current_buf()
-  local fd = vim.b[bufnr].region_fold_data
+  local fd = _fold_data[bufnr]
   if not fd then
     return "0"
   end
@@ -30,24 +35,33 @@ function M.setup_folds(bufnr, regions)
     levels[lnum] = 0
   end
 
-  -- For each region, set levels for lines inside the region
-  -- Sort by depth ascending so inner regions override outer
+  -- Sort by depth ascending so inner regions override outer levels
   local sorted = vim.deepcopy(regions)
   table.sort(sorted, function(a, b) return a.depth < b.depth end)
 
   for _, region in ipairs(sorted) do
-    -- All lines from start to end (inclusive) get at least this region's depth
     -- start_line and end_line are 0-indexed; lnum is 1-indexed
     for row = region.start_line, region.end_line do
       local lnum = row + 1
       levels[lnum] = math.max(levels[lnum] or 0, region.depth)
     end
-    -- Mark the start line as a fold opener
     starts[region.start_line + 1] = region.depth
   end
 
-  -- Store as plain table (not userdata) for vim.b serialization
-  vim.b[bufnr].region_fold_data = { starts = starts, levels = levels }
+  _fold_data[bufnr] = { starts = starts, levels = levels }
+end
+
+--- Release fold data for a buffer (call on BufDelete)
+---@param bufnr integer
+function M.clear_folds(bufnr)
+  _fold_data[bufnr] = nil
+end
+
+--- Return fold data for a buffer (for debugging/inspection)
+---@param bufnr integer
+---@return table|nil
+function M.get_fold_data(bufnr)
+  return _fold_data[bufnr]
 end
 
 --- Set fold options on the current window. Must be called from a window context.

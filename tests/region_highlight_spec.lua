@@ -233,7 +233,7 @@ describe("region-highlight.folding", function()
   local folding = require("region-highlight.folding")
 
   describe("setup_folds()", function()
-    it("stores fold data in vim.b", function()
+    it("stores fold data accessible via get_fold_data()", function()
       local bufnr = make_buf({
         "-- #region",
         "local x = 1",
@@ -241,7 +241,7 @@ describe("region-highlight.folding", function()
       })
       local rs = regions.parse(bufnr)
       folding.setup_folds(bufnr, rs)
-      local fd = vim.b[bufnr].region_fold_data
+      local fd = folding.get_fold_data(bufnr)
       assert.is_not_nil(fd)
       assert.is_not_nil(fd.starts)
       assert.is_not_nil(fd.levels)
@@ -256,7 +256,7 @@ describe("region-highlight.folding", function()
       })
       local rs = regions.parse(bufnr)
       folding.setup_folds(bufnr, rs)
-      local fd = vim.b[bufnr].region_fold_data
+      local fd = folding.get_fold_data(bufnr)
       assert.are.equal(1, fd.starts[1]) -- lnum 1 starts fold of depth 1
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
@@ -270,7 +270,7 @@ describe("region-highlight.folding", function()
       })
       local rs = regions.parse(bufnr)
       folding.setup_folds(bufnr, rs)
-      local fd = vim.b[bufnr].region_fold_data
+      local fd = folding.get_fold_data(bufnr)
       assert.are.equal(1, fd.levels[1])
       assert.are.equal(1, fd.levels[2])
       assert.are.equal(1, fd.levels[3])
@@ -288,7 +288,7 @@ describe("region-highlight.folding", function()
       })
       local rs = regions.parse(bufnr)
       folding.setup_folds(bufnr, rs)
-      local fd = vim.b[bufnr].region_fold_data
+      local fd = folding.get_fold_data(bufnr)
       assert.are.equal(1, fd.levels[1])
       assert.are.equal(2, fd.levels[2])
       assert.are.equal(2, fd.levels[3])
@@ -299,11 +299,11 @@ describe("region-highlight.folding", function()
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)
 
-    it("no fold data is set when regions list is empty", function()
+    it("no fold data starts are empty when regions list is empty", function()
       local bufnr = make_buf({ "local x = 1" })
       folding.setup_folds(bufnr, {})
-      local fd = vim.b[bufnr].region_fold_data
-      assert.is_not_nil(fd) -- still set, just empty starts
+      local fd = folding.get_fold_data(bufnr)
+      assert.is_not_nil(fd)
       assert.are.equal(0, vim.tbl_count(fd.starts))
       vim.api.nvim_buf_delete(bufnr, { force = true })
     end)

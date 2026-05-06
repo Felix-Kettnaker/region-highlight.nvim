@@ -82,7 +82,7 @@ function M.setup(opts)
     callback = function(ev)
       local bufnr = ev.buf
       -- Re-install fold options (window-local, must be set per-window)
-      if vim.b[bufnr].region_fold_data then
+      if vim.b[bufnr].region_list then
         folding.install_fold_options()
       end
       if not vim.b[bufnr].region_initial_fold_done then
@@ -103,13 +103,21 @@ function M.setup(opts)
     group = group,
     callback = function(ev)
       local bufnr = ev.buf
-      if vim.b[bufnr].region_fold_data then
+      if vim.b[bufnr].region_list then
         folding.install_fold_options()
       end
       local regions = vim.b[bufnr].region_list
       if regions and not vim.b[bufnr].region_initial_fold_done then
         folding.apply_initial_folds(bufnr, regions, config.options)
       end
+    end,
+  })
+
+  -- Release fold data when buffer is deleted
+  vim.api.nvim_create_autocmd("BufDelete", {
+    group = group,
+    callback = function(ev)
+      folding.clear_folds(ev.buf)
     end,
   })
 
