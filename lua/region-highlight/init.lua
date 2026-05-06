@@ -77,45 +77,42 @@ function M.setup(opts)
       vim.b[ev.buf].region_initial_fold_done = false
       process_buffer(ev.buf, true)
       if vim.b[ev.buf].region_list then
-        folding.install_fold_options()
+        folding.install_fold_options(ev.buf)
       end
     end,
   })
 
-  -- When entering a buffer (e.g., switching tabs) - re-apply highlights and fold options
+  -- When entering a buffer (e.g., switching tabs) - re-install fold options.
+  -- install_fold_options(bufnr) will NOT reset foldlevel if initial folds are done,
+  -- so manually-closed folds are preserved.
   vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
     callback = function(ev)
       local bufnr = ev.buf
-      if not vim.b[bufnr].region_initial_fold_done then
-        -- Buffer entered before FileType had a chance to process it; try now.
-        -- (This also handles buffers opened in the background.)
-        process_buffer(bufnr, true)
-      end
-      -- Re-install fold options (window-local, must be set per-window)
       if vim.b[bufnr].region_list then
-        folding.install_fold_options()
-        if not vim.b[bufnr].region_initial_fold_done then
-          local regions = vim.b[bufnr].region_list
-          folding.apply_initial_folds(bufnr, regions, config.options)
-        else
-          highlights.apply(bufnr, vim.b[bufnr].region_list, config.options)
+        folding.install_fold_options(bufnr)
+      elseif vim.api.nvim_get_option_value("filetype", { buf = bufnr }) ~= "" then
+        -- Filetype is known but not yet processed (e.g. background buffer)
+        process_buffer(bufnr, true)
+        if vim.b[bufnr].region_list then
+          folding.install_fold_options(bufnr)
         end
       end
     end,
   })
 
-  -- BufWinEnter: install fold options and apply initial folds when buffer appears in a window
+  -- BufWinEnter: install fold options and apply initial folds when buffer appears in a window.
+  -- Handles background buffers where FileType fired before the buffer had a window.
   vim.api.nvim_create_autocmd("BufWinEnter", {
     group = group,
     callback = function(ev)
       local bufnr = ev.buf
       if vim.b[bufnr].region_list then
-        folding.install_fold_options()
-      end
-      local regions = vim.b[bufnr].region_list
-      if regions and not vim.b[bufnr].region_initial_fold_done then
-        folding.apply_initial_folds(bufnr, regions, config.options)
+        folding.install_fold_options(bufnr)
+        if not vim.b[bufnr].region_initial_fold_done then
+          local regions = vim.b[bufnr].region_list
+          folding.apply_initial_folds(bufnr, regions, config.options)
+        end
       end
     end,
   })
