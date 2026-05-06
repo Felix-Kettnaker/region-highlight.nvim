@@ -229,6 +229,144 @@ describe("region-highlight.highlights", function()
   end)
 end)
 
+describe("region-highlight.folding", function()
+  local folding = require("region-highlight.folding")
+
+  describe("setup_folds()", function()
+    it("stores fold data in vim.b", function()
+      local bufnr = make_buf({
+        "-- #region",
+        "local x = 1",
+        "-- #endregion",
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local fd = vim.b[bufnr].region_fold_data
+      assert.is_not_nil(fd)
+      assert.is_not_nil(fd.starts)
+      assert.is_not_nil(fd.levels)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("marks region start line as fold opener", function()
+      local bufnr = make_buf({
+        "-- #region",    -- row 0, lnum 1
+        "local x = 1",
+        "-- #endregion",
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local fd = vim.b[bufnr].region_fold_data
+      assert.are.equal(1, fd.starts[1]) -- lnum 1 starts fold of depth 1
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("sets fold levels for all lines inside a region", function()
+      local bufnr = make_buf({
+        "-- #region",    -- lnum 1: depth 1
+        "local x = 1",   -- lnum 2: depth 1
+        "-- #endregion", -- lnum 3: depth 1
+        "local y = 2",   -- lnum 4: depth 0 (outside)
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local fd = vim.b[bufnr].region_fold_data
+      assert.are.equal(1, fd.levels[1])
+      assert.are.equal(1, fd.levels[2])
+      assert.are.equal(1, fd.levels[3])
+      assert.are.equal(0, fd.levels[4])
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("sets deeper levels for nested regions", function()
+      local bufnr = make_buf({
+        "-- #region outer", -- lnum 1: depth 1
+        "-- #region inner", -- lnum 2: depth 2
+        "local x = 1",      -- lnum 3: depth 2
+        "-- #endregion",    -- lnum 4: depth 2 (inner end)
+        "-- #endregion",    -- lnum 5: depth 1 (outer end)
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local fd = vim.b[bufnr].region_fold_data
+      assert.are.equal(1, fd.levels[1])
+      assert.are.equal(2, fd.levels[2])
+      assert.are.equal(2, fd.levels[3])
+      assert.are.equal(2, fd.levels[4])
+      assert.are.equal(1, fd.levels[5])
+      assert.are.equal(1, fd.starts[1])
+      assert.are.equal(2, fd.starts[2])
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("no fold data is set when regions list is empty", function()
+      local bufnr = make_buf({ "local x = 1" })
+      folding.setup_folds(bufnr, {})
+      local fd = vim.b[bufnr].region_fold_data
+      assert.is_not_nil(fd) -- still set, just empty starts
+      assert.are.equal(0, vim.tbl_count(fd.starts))
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+  end)
+
+  describe("foldexpr()", function()
+    it("returns '>depth' for region start lines", function()
+      local bufnr = make_buf({
+        "-- #region",
+        "local x = 1",
+        "-- #endregion",
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local result = vim.api.nvim_buf_call(bufnr, function()
+        return folding.foldexpr(1)
+      end)
+      assert.are.equal(">1", result)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("returns level string for lines inside a region", function()
+      local bufnr = make_buf({
+        "-- #region",
+        "local x = 1",
+        "-- #endregion",
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local result = vim.api.nvim_buf_call(bufnr, function()
+        return folding.foldexpr(2)
+      end)
+      assert.are.equal("1", result)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("returns '0' for lines outside all regions", function()
+      local bufnr = make_buf({
+        "-- #region",
+        "local x = 1",
+        "-- #endregion",
+        "local y = 2", -- lnum 4, outside
+      })
+      local rs = regions.parse(bufnr)
+      folding.setup_folds(bufnr, rs)
+      local result = vim.api.nvim_buf_call(bufnr, function()
+        return folding.foldexpr(4)
+      end)
+      assert.are.equal("0", result)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+
+    it("returns '0' when no fold data exists", function()
+      local bufnr = make_buf({ "local x = 1" })
+      local result = vim.api.nvim_buf_call(bufnr, function()
+        return folding.foldexpr(1)
+      end)
+      assert.are.equal("0", result)
+      vim.api.nvim_buf_delete(bufnr, { force = true })
+    end)
+  end)
+end)
+
 describe("region-highlight.config", function()
   it("has correct defaults", function()
     config.setup({})
