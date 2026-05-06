@@ -65,11 +65,15 @@ function M.get_fold_data(bufnr)
 end
 
 --- Set fold options on the current window. Must be called from a window context.
---- Call this from BufWinEnter or BufEnter autocmds.
+--- Call this from FileType, BufWinEnter or BufEnter autocmds.
 function M.install_fold_options()
   vim.wo.foldmethod = "expr"
   vim.wo.foldexpr = "v:lua.require('region-highlight.folding').foldexpr(v:lnum)"
   vim.wo.foldenable = true
+  -- Start with all folds open; apply_initial_folds will selectively close
+  -- the ones marked with #region fold (or all of them if fold_all is set).
+  -- Without this, foldlevel=0 (the default) closes every fold immediately.
+  vim.wo.foldlevel = 99
 end
 
 --- Close folds for regions that have fold_on_load = true.
