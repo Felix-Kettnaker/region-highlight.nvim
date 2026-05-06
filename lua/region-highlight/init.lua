@@ -68,13 +68,14 @@ function M.setup(opts)
 
   local group = vim.api.nvim_create_augroup("RegionHighlight", { clear = true })
 
-  -- Initial load
-  vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+  -- Primary trigger: FileType fires after filetype is detected and file is read,
+  -- guaranteeing treesitter is ready and filetype is non-empty.
+  vim.api.nvim_create_autocmd("FileType", {
     group = group,
     callback = function(ev)
+      -- Reset so auto-folds re-apply on filetype change / file reload
+      vim.b[ev.buf].region_initial_fold_done = false
       process_buffer(ev.buf, true)
-      -- BufWinEnter fires BEFORE BufReadPost on initial open, so fold options
-      -- must also be installed here, now that the buffer has a window.
       if vim.b[ev.buf].region_list then
         folding.install_fold_options()
       end
@@ -86,18 +87,19 @@ function M.setup(opts)
     group = group,
     callback = function(ev)
       local bufnr = ev.buf
+      if not vim.b[bufnr].region_initial_fold_done then
+        -- Buffer entered before FileType had a chance to process it; try now.
+        -- (This also handles buffers opened in the background.)
+        process_buffer(bufnr, true)
+      end
       -- Re-install fold options (window-local, must be set per-window)
       if vim.b[bufnr].region_list then
         folding.install_fold_options()
-      end
-      if not vim.b[bufnr].region_initial_fold_done then
-        -- Buffer was loaded but never got initial fold (e.g., opened in background)
-        process_buffer(bufnr, true)
-      else
-        -- Re-apply highlights only (don't reset folds)
-        if vim.api.nvim_buf_is_valid(bufnr) then
-          local regions = vim.b[bufnr].region_list or regions_mod.parse(bufnr)
-          highlights.apply(bufnr, regions, config.options)
+        if not vim.b[bufnr].region_initial_fold_done then
+          local regions = vim.b[bufnr].region_list
+          folding.apply_initial_folds(bufnr, regions, config.options)
+        else
+          highlights.apply(bufnr, vim.b[bufnr].region_list, config.options)
         end
       end
     end,
