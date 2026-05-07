@@ -1,5 +1,7 @@
 # region-highlight.nvim
 
+[region-highlight.jpg]
+
 Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregion` markers.
 
 ⚠️ Disclaimer: This is a **100% Vibe-coded Plugin.**
