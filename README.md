@@ -1,6 +1,6 @@
 # region-highlight.nvim
 
-[region-highlight.jpg]
+![](region-highlight.jpg)
 
 Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregion` markers.
 
