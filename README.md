@@ -2,19 +2,21 @@
 
 ![](region-highlight.jpg)
 
-Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregion` markers.
+Code region declarations for Neovim, inspired by other Editors `#region` / `#endregion` markers.
 
 ⚠️ Disclaimer: This is a **100% Vibe-coded Plugin.**
 
 ## Features
 
+- **Visual highlighting**: Regions are visually tinted
+  - nested regions are respected
+  - `colorcolumn` remains visible (in this case is manually redrawn)
+  - Bring your own color palette, or disable coloring entirely
 - **Region folding**: Use `za` on a `#region` line to fold/unfold
-- **Region picker**: jump to any region via snacks.nvim fuzzy picker — current buffer (`:RegionPickerBuf`) or whole project (`:RegionPickerGlobal`, requires `rg`); requires [snacks.nvim](https://github.com/folke/snacks.nvim)
+  - `#region fold` auto-closes on initial file load only
 - **% jumping**: Press `%` on a `#region` or `#endregion` to jump to its pair
-- **Visual highlighting**: Regions are visually tinted (stacking for nested regions); `colorcolumn` guides remain visible through the background
+- **Region picker**: jump to any region via snacks.nvim fuzzy picker — current buffer (`:RegionPickerBuf`) or whole project (`:RegionPickerGlobal`, requires `rg`); requires [snacks.nvim](https://github.com/folke/snacks.nvim)
 - **Language-aware**: Uses treesitter to detect comment lines; falls back gracefully
-- **Auto-fold**: `#region fold` auto-closes on initial file load only
-- **Customizable colors**: Bring your own palette, or disable coloring entirely
 - **Live refresh**: Highlights update automatically as you edit (debounce configurable)
 
 ## Installation
@@ -29,45 +31,35 @@ Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregi
 }
 ```
 
+### Astronvim
+```lua
+{
+  "Felix-Kettnaker/region-highlight.nvim",
+  opts = {},
+}
+```
+
 ## Usage
 
 Add region markers inside comments. The marker must appear within a comment line — bare code lines are ignored.
 
-**C / C++ / JavaScript / TypeScript:**
-```c
-// #region My Section
-void myFunction() {}
-// #endregion
-```
+### Default case
+`#region` inside a normal comment:
 
-**Lua / Ruby / Shell:**
 ```lua
--- #region My Section
-local function myFunction() end
+-- #region
+localmy_table = {}
 -- #endregion
 ```
 
-**Python** — since `#` is Python's comment character, `#region` alone is enough (no space needed):
-```python
-#region My Section
-def my_function(): pass
-#endregion
-```
+- `// #region My Section` for example in JS
+- `-- #region My Section` for example in Lua
 
-The `# #region` form (with a space) also works and matches VS Code's style:
-```python
-# #region My Section
-def my_function(): pass
-# #endregion
-```
-
-**GDScript** — `#region`/`#endregion` are native GDScript keywords and are recognized directly (this is the only syntax Godot accepts):
-```gdscript
-#region My Section
-func my_function(): pass
-#endregion
-```
-
+### Languages with #-Comments
+Since the comment already starts with # you can omit the extra ` #`.
+- `#region My Section` for python or GDScript
+- `# #region` works nonetheless
+- for GDScript, `#region` is recommended since that's the only way it's recognized as a region by the Godot Editor
 
 
 Regions can be nested. Each level adds another tint step, so nesting stays visually distinguishable.
@@ -76,37 +68,30 @@ Regions can be nested. Each level adds another tint step, so nesting stays visua
 -- #region Outer
 local a = 1
 -- #region Inner
-local b = 2  -- double-tinted
+local b = 2
 -- #endregion
 -- #endregion
 ```
 
 ### Auto-fold on load
 
-Append `fold` to the marker to have the region auto-close when the file is first opened:
-
-```lua
--- #region fold
-local big_table = { ... }  -- hidden by default
--- #endregion
-```
-
-The fold only closes on the **initial** file open. Switching back to the buffer will not re-close it.
+With `#region fold` the region auto-closes when the file is first opened
 
 ## Configuration
-
+defaults:
 ```lua
 require("region-highlight").setup({
-  -- Treat ALL #region markers as #region fold (auto-close everything on load)
-  fold_all = false, -- default
+  -- auto-close everything on load, regardless of `fold`-keyword
+  fold_all = false,
 
   -- Debounce delay (ms) for re-processing after text changes
-  refresh_debounce = 300, -- default
+  -- lower values feel snappier, higher values are better for performance
+  refresh_debounce = 300,
 
   -- Custom background colors, cycled by encounter order across the file.
-  -- 3 colors + 4 regions → region 4 gets color 1 again.
+  colors = nil,
+  -- custom colors are cycled per buffer in region encounter order
   -- colors = { "#1e1e2e", "#1e2e1e", "#2e1e1e" }
-
   -- Set to false to disable background highlighting entirely.
   -- colors = false
 })
