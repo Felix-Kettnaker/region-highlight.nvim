@@ -391,6 +391,48 @@ describe("region-highlight.config", function()
   end)
 end)
 
+describe("region-highlight.matchit", function()
+  local rh = require("region-highlight")
+
+  it("sets b:match_words with region pair on a fresh buffer", function()
+    local bufnr = make_buf({ "-- #region", "local x = 1", "-- #endregion" })
+    vim.b[bufnr].match_words = nil
+    rh.setup_matchit(bufnr)
+    local mw = vim.b[bufnr].match_words or ""
+    assert.truthy(mw:find("#region\\>:#endregion", 1, true))
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+  end)
+
+  it("appends to existing b:match_words without overwriting", function()
+    local bufnr = make_buf({ "-- #region", "local x = 1", "-- #endregion" })
+    vim.b[bufnr].match_words = "if:endif,for:endfor"
+    rh.setup_matchit(bufnr)
+    local mw = vim.b[bufnr].match_words or ""
+    assert.truthy(mw:find("if:endif,for:endfor", 1, true))
+    assert.truthy(mw:find("#region\\>:#endregion", 1, true))
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+  end)
+
+  it("does not add duplicate pair when called twice", function()
+    local bufnr = make_buf({ "-- #region", "local x = 1", "-- #endregion" })
+    vim.b[bufnr].match_words = nil
+    rh.setup_matchit(bufnr)
+    rh.setup_matchit(bufnr)
+    local mw = vim.b[bufnr].match_words or ""
+    -- Count occurrences: should be exactly 1
+    local count = 0
+    local pos = 1
+    while true do
+      local s = mw:find("#region", pos, true)
+      if not s then break end
+      count = count + 1
+      pos = s + 1
+    end
+    assert.are.equal(1, count)
+    vim.api.nvim_buf_delete(bufnr, { force = true })
+  end)
+end)
+
 -- Regression tests for fold initialization bugs
 describe("region-highlight.folding (regression)", function()
   local folding = require("region-highlight.folding")

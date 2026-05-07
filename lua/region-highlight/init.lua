@@ -8,6 +8,17 @@ local M = {}
 -- Debounce timer per buffer
 local timers = {}
 
+--- Set up matchit % jumping between #region / #endregion
+---@param bufnr integer
+local function setup_matchit(bufnr)
+  local pair = "#region\\>:#endregion"
+  local existing = vim.b[bufnr].match_words or ""
+  if not existing:find(pair, 1, true) then
+    vim.b[bufnr].match_words = existing ~= "" and (existing .. "," .. pair) or pair
+  end
+end
+M.setup_matchit = setup_matchit
+
 --- Process a buffer: parse regions, apply highlights, set up folds
 ---@param bufnr integer
 ---@param initial_load boolean whether this is the first time the buffer is loaded
@@ -25,6 +36,7 @@ local function process_buffer(bufnr, initial_load)
 
   highlights.apply(bufnr, regions, config.options)
   folding.setup_folds(bufnr, regions)
+  setup_matchit(bufnr)
 
   -- Store regions for later use (e.g., initial fold application)
   vim.b[bufnr].region_list = regions

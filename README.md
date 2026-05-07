@@ -5,6 +5,7 @@ Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregi
 ## Features
 
 - **Region folding**: Use `za` on a `#region` line to fold/unfold
+- **% jumping**: Press `%` on a `#region` or `#endregion` to jump to its pair (requires matchit, built into Neovim)
 - **Visual highlighting**: Regions are visually tinted (stacking for nested regions)
 - **Language-aware**: Uses treesitter to detect comment lines; falls back gracefully
 - **Auto-fold**: `#region fold` auto-closes on initial file load only
@@ -115,12 +116,13 @@ Without `colors`, the plugin automatically derives tint colors from your theme's
 
 Tints stack: a region at depth 2 is twice as tinted as depth 1.
 
-## Folding
+## Folding and navigation
 
 Regions are registered with `foldmethod=expr`. This means:
 
 - `za` on a `#region` line folds or unfolds the region
 - `zR` / `zM` open / close all folds as usual
+- `%` on a `#region` or `#endregion` line jumps to the matching pair (nesting-aware, requires matchit)
 - ⚠️ This overrides any other `foldmethod` set for that buffer
 
 ## Troubleshooting
