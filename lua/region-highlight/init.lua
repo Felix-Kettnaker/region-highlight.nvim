@@ -8,16 +8,36 @@ local M = {}
 -- Debounce timer per buffer
 local timers = {}
 
---- Set up matchit % jumping between #region / #endregion
+--- Set up a buffer-local % that jumps between paired #region / #endregion.
+--- Uses the parsed region data so only real comment-line markers are matched.
+--- Falls through to matchit (or built-in %) for all other lines.
 ---@param bufnr integer
-local function setup_matchit(bufnr)
-  local pair = "#region\\>:#endregion"
-  local existing = vim.b[bufnr].match_words or ""
-  if not existing:find(pair, 1, true) then
-    vim.b[bufnr].match_words = existing ~= "" and (existing .. "," .. pair) or pair
-  end
+local function setup_percent_jump(bufnr)
+  vim.keymap.set("n", "%", function()
+    local row = vim.api.nvim_win_get_cursor(0)[1] - 1 -- 0-indexed
+    local region_list = vim.b[bufnr].region_list
+    if region_list then
+      for _, region in ipairs(region_list) do
+        if row == region.start_line then
+          vim.api.nvim_win_set_cursor(0, { region.end_line + 1, 0 })
+          return
+        elseif row == region.end_line then
+          vim.api.nvim_win_set_cursor(0, { region.start_line + 1, 0 })
+          return
+        end
+      end
+    end
+    -- Not on a region marker: fall through to matchit or built-in %
+    if vim.fn.maparg("<Plug>MatchitNormalForward", "n") ~= "" then
+      vim.api.nvim_feedkeys(
+        vim.api.nvim_replace_termcodes("<Plug>MatchitNormalForward", true, true, true),
+        "n", true)
+    else
+      vim.cmd("normal! %")
+    end
+  end, { buffer = bufnr, desc = "% region-aware: jumps #region<->#endregion, falls through to matchit" })
 end
-M.setup_matchit = setup_matchit
+M.setup_percent_jump = setup_percent_jump
 
 --- Process a buffer: parse regions, apply highlights, set up folds
 ---@param bufnr integer
@@ -36,7 +56,7 @@ local function process_buffer(bufnr, initial_load)
 
   highlights.apply(bufnr, regions, config.options)
   folding.setup_folds(bufnr, regions)
-  setup_matchit(bufnr)
+  setup_percent_jump(bufnr)
 
   -- Store regions for later use (e.g., initial fold application)
   vim.b[bufnr].region_list = regions

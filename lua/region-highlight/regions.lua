@@ -17,12 +17,8 @@ local function get_comment_lines(bufnr)
     return comment_lines
   end
 
-  local trees = parser:parse()
-  if not trees or not trees[1] then
-    return comment_lines
-  end
-
-  local root = trees[1]:root()
+  -- parse() populates injection trees (e.g. <script> in Vue, heredocs, etc.)
+  parser:parse()
 
   local function walk(node)
     local ntype = node:type()
@@ -51,7 +47,12 @@ local function get_comment_lines(bufnr)
     end
   end
 
-  walk(root)
+  -- for_each_tree walks the main tree AND all injected language trees
+  -- (e.g. the <script> block in a .vue file gets its own JS/TS tree)
+  parser:for_each_tree(function(tree, _)
+    walk(tree:root())
+  end)
+
   return comment_lines
 end
 
