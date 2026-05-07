@@ -55,7 +55,14 @@ def my_function(): pass
 # #endregion
 ```
 
-### Nested regions
+**GDScript** — `#region`/`#endregion` are native GDScript keywords and are recognized directly (this is the only syntax Godot accepts):
+```gdscript
+#region My Section
+func my_function(): pass
+#endregion
+```
+
+
 
 Regions can be nested. Each level adds another tint step, so nesting stays visually distinguishable.
 
@@ -115,6 +122,12 @@ Regions are registered with `foldmethod=expr`. This means:
 - `za` on a `#region` line folds or unfolds the region
 - `zR` / `zM` open / close all folds as usual
 - ⚠️ This overrides any other `foldmethod` set for that buffer
+
+## Troubleshooting
+
+### LSP highlights appear over region markers
+
+Some language servers (e.g. `lua-language-server`) return a document-highlight response that spans the entire region when the cursor is on a `#region`/`#endregion` marker. This is intentional server behavior and unrelated to region-highlight.nvim. Disabling the document-highlight feature (e.g. `snacks.nvim` `words`) in your LSP config resolves it.
 
 ## Testing
 

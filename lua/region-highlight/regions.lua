@@ -34,6 +34,17 @@ local function get_comment_lines(bufnr)
       end
       -- Don't recurse into comment children
       return
+    elseif ntype == "region" then
+      -- GDScript: (region) spans #region...#endregion as a native AST node.
+      -- Collect the first line (#region) and last line (#endregion) so our
+      -- text-based matching in M.parse() can handle them normally.
+      local start_row, _, end_row, _ = node:range()
+      local lines = vim.api.nvim_buf_get_lines(bufnr, start_row, end_row + 1, false)
+      if lines[1] then comment_lines[start_row] = lines[1] end
+      if end_row ~= start_row and lines[#lines] then
+        comment_lines[end_row] = lines[#lines]
+      end
+      -- Still recurse to handle nested (region) nodes
     end
     for child in node:iter_children() do
       walk(child)
