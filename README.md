@@ -6,7 +6,7 @@ Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregi
 
 - **Region folding**: Use `za` on a `#region` line to fold/unfold
 - **% jumping**: Press `%` on a `#region` or `#endregion` to jump to its pair
-- **Visual highlighting**: Regions are visually tinted (stacking for nested regions)
+- **Visual highlighting**: Regions are visually tinted (stacking for nested regions); `colorcolumn` guides remain visible through the background
 - **Language-aware**: Uses treesitter to detect comment lines; falls back gracefully
 - **Auto-fold**: `#region fold` auto-closes on initial file load only
 - **Customizable colors**: Bring your own palette, or disable coloring entirely
