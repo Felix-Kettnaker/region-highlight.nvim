@@ -2,6 +2,8 @@
 
 Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregion` markers.
 
+⚠️ Disclaimer: This is a **100% Vibe-coded Plugin.**
+
 ## Features
 
 - **Region folding**: Use `za` on a `#region` line to fold/unfold
