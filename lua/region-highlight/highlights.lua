@@ -9,6 +9,36 @@ local _row_to_hl = {}
 -- Per-window cursor row cache, populated in on_win to avoid per-line API calls.
 local _win_cursor = {}
 
+-- Per-window colorcolumn positions (0-indexed visual columns), or false if unset.
+-- Populated in on_win so on_line doesn't need to re-parse per rendered row.
+local _win_cc = {}
+
+--- Parse the window's 'colorcolumn' option into a sorted list of 0-indexed visual columns.
+--- Returns false when colorcolumn is unset/empty.
+---@param winid integer
+---@param bufnr integer
+---@return integer[]|false
+local function parse_colorcolumn(winid, bufnr)
+  local cc_str = vim.wo[winid].colorcolumn
+  if not cc_str or cc_str == "" then return false end
+  local tw = vim.bo[bufnr].textwidth -- textwidth is buffer-local, not window-local
+  local cols = {}
+  for s in cc_str:gmatch("[^,]+") do
+    local sign, n_str = s:match("^([+-]?)(%d+)$")
+    local n = tonumber(n_str)
+    if n then
+      if sign == "+" then
+        n = (tw > 0 and tw or 0) + n
+      elseif sign == "-" then
+        n = (tw > 0 and tw or 0) - n
+      end
+      if n > 0 then cols[#cols + 1] = n - 1 end -- 0-indexed
+    end
+  end
+  table.sort(cols)
+  return #cols > 0 and cols or false
+end
+
 --- Parse a 24-bit integer color into R, G, B components
 ---@param color integer
 ---@return integer, integer, integer
@@ -78,8 +108,8 @@ end
 --- Apply region highlights to a buffer.
 --- Builds an internal row→hl_name map used by the decoration provider.
 --- No persistent extmarks are created; highlights are rendered ephemerally
---- per-line so that higher-priority decorations (CursorLine, colorizer, etc.)
---- always override the region background.
+--- per-line so that higher-priority decorations (CursorLine, colorizer,
+--- colorcolumn, etc.) always override the region background.
 ---@param bufnr integer
 ---@param regions table[] from regions.parse()
 ---@param opts table config options
@@ -173,6 +203,7 @@ function M.setup_provider()
       else
         _win_cursor[winid] = -1
       end
+      _win_cc[winid] = parse_colorcolumn(winid, bufnr)
     end,
 
     on_line = function(_, winid, bufnr, row)
@@ -186,14 +217,66 @@ function M.setup_provider()
       -- that lets line_attr_lowprio (CursorLine) take precedence.
       if _win_cursor[winid] == row then return end
 
-      vim.api.nvim_buf_set_extmark(bufnr, NS, row, 0, {
+      local cc_cols = _win_cc[winid]
+
+      if not cc_cols then
+        -- No colorcolumn: single full-line extmark with EOL extension.
+        vim.api.nvim_buf_set_extmark(bufnr, NS, row, 0, {
+          end_row = row + 1,
+          end_col = 0,
+          hl_group = hl_name,
+          hl_eol = true,
+          priority = 10, -- below syntax (50), treesitter (100), etc.
+          ephemeral = true,
+        })
+        return
+      end
+
+      -- Colorcolumn is set.
+      -- For cc positions within actual text: skip them in character extmarks so
+      -- the cell has no region bg and native ColorColumn wins there.
+      -- For cc positions in virtual space (past end of line): use hl_eol for solid
+      -- region bg (including the NUL cell), then overlay virt_text_win_col with
+      -- ColorColumn at each virtual-space cc column. virt_text_win_col renders in
+      -- the main char loop with its own decor_attr, so it overrides hl_eol there.
+      local line_text = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ""
+      local line_len = #line_text
+
+      -- Build character extmarks for actual text, skipping text-level cc positions.
+      local prev = 0
+      for _, cc in ipairs(cc_cols) do
+        if cc >= line_len then break end
+        if cc > prev then
+          vim.api.nvim_buf_set_extmark(bufnr, NS, row, prev, {
+            end_row = row,
+            end_col = cc,
+            hl_group = hl_name,
+            priority = 10,
+            ephemeral = true,
+          })
+        end
+        prev = cc + 1
+      end
+      -- Final segment: remaining text + NUL cell + all virtual space via hl_eol.
+      vim.api.nvim_buf_set_extmark(bufnr, NS, row, prev, {
         end_row = row + 1,
         end_col = 0,
         hl_group = hl_name,
         hl_eol = true,
-        priority = 10, -- below syntax (50), treesitter (100), etc.
+        priority = 10,
         ephemeral = true,
       })
+      -- Overlay ColorColumn at virtual-space cc positions on top of hl_eol bg.
+      for _, cc in ipairs(cc_cols) do
+        if cc >= line_len then
+          vim.api.nvim_buf_set_extmark(bufnr, NS, row, 0, {
+            virt_text = { { " ", "ColorColumn" } },
+            virt_text_win_col = cc,
+            priority = 20,
+            ephemeral = true,
+          })
+        end
+      end
     end,
   })
 end
@@ -202,6 +285,7 @@ end
 ---@param winid integer
 function M.clear_win(winid)
   _win_cursor[winid] = nil
+  _win_cc[winid] = nil
 end
 
 return M
