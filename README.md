@@ -9,6 +9,7 @@ Code region declarations for Neovim, inspired by VS Code's `#region` / `#endregi
 ## Features
 
 - **Region folding**: Use `za` on a `#region` line to fold/unfold
+- **Region picker**: jump to any region via snacks.nvim fuzzy picker — current buffer (`:RegionPickerBuf`) or whole project (`:RegionPickerGlobal`, requires `rg`); requires [snacks.nvim](https://github.com/folke/snacks.nvim)
 - **% jumping**: Press `%` on a `#region` or `#endregion` to jump to its pair
 - **Visual highlighting**: Regions are visually tinted (stacking for nested regions); `colorcolumn` guides remain visible through the background
 - **Language-aware**: Uses treesitter to detect comment lines; falls back gracefully
@@ -128,6 +129,24 @@ Regions are registered with `foldmethod=expr`. This means:
 - `zR` / `zM` open / close all folds as usual
 - `%` on a `#region` or `#endregion` line jumps to the matching pair (nesting-aware; falls through to matchit / built-in % on other lines)
 - ⚠️ This overrides any other `foldmethod` set for that buffer
+
+## Region picker
+
+If [snacks.nvim](https://github.com/folke/snacks.nvim) is installed, two picker commands are available:
+
+| Command | Description |
+|---|---|
+| `:RegionPickerBuf` | Lists all regions in the current buffer (treesitter-accurate) |
+| `:RegionPickerGlobal` | Scans the entire project via `rg` and lists every `#region` (requires [ripgrep](https://github.com/BurntSushi/ripgrep)) |
+
+The preview shows the file at the region's start line. Confirming jumps there and opens any enclosing folds.
+
+You can also bind them to keys:
+
+```lua
+vim.keymap.set("n", "<leader>fR", require("region-highlight").pick, { desc = "Region picker (buffer)" })
+vim.keymap.set("n", "<leader>fG", require("region-highlight").pick_global, { desc = "Region picker (project)" })
+```
 
 ## Troubleshooting
 

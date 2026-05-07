@@ -2,6 +2,7 @@ local config = require("region-highlight.config")
 local regions_mod = require("region-highlight.regions")
 local highlights = require("region-highlight.highlights")
 local folding = require("region-highlight.folding")
+local picker = require("region-highlight.picker")
 
 local M = {}
 
@@ -93,6 +94,16 @@ local function schedule_refresh(bufnr)
   end))
 end
 
+--- Open a snacks.nvim picker listing all regions in the current buffer.
+function M.pick()
+  picker.buf()
+end
+
+--- Open a snacks.nvim picker scanning the entire project for #region markers.
+function M.pick_global()
+  picker.global()
+end
+
 --- Public setup function
 ---@param opts table|nil
 function M.setup(opts)
@@ -101,6 +112,14 @@ function M.setup(opts)
   -- Register the decoration provider once; it renders highlights ephemerally
   -- each frame using the row→hl map populated by highlights.apply().
   highlights.setup_provider()
+
+  vim.api.nvim_create_user_command("RegionPickerBuf", function()
+    picker.buf()
+  end, { desc = "Open region picker for the current buffer (requires snacks.nvim)" })
+
+  vim.api.nvim_create_user_command("RegionPickerGlobal", function()
+    picker.global()
+  end, { desc = "Open region picker scanning the whole project via rg (requires snacks.nvim + rg)" })
 
   local group = vim.api.nvim_create_augroup("RegionHighlight", { clear = true })
 
