@@ -25,18 +25,18 @@ Code region declarations for Neovim, inspired by other Editors `#region` / `#end
 ```lua
 {
   "Felix-Kettnaker/region-highlight.nvim",
-  config = function()
-    require("region-highlight").setup()
-  end,
+  event = "BufReadPost", -- load on file open so highlights appear immediately
+  opts = {},             -- or pass your config options here
+  -- optional key bindings for the snacks.nvim pickers:
+  keys = {
+    { "<Leader>fR", function() require("region-highlight").pick_global() end, desc = "Pick Region (Global)" },
+    { "<Leader>fr", function() require("region-highlight").pick() end,        desc = "Pick Region (Buffer)" },
+  },
 }
 ```
 
-### Astronvim
-```lua
-{
-  "Felix-Kettnaker/region-highlight.nvim",
-  opts = {},
-}
+> ⚠️ **Do not use `keys` as the only lazy trigger.** If `keys` is specified without an `event`, the plugin only loads when you press those keys — highlights and folding won't appear until then. Always include `event = "BufReadPost"` so the plugin loads when a file is opened.
+
 ```
 
 ## Usage
