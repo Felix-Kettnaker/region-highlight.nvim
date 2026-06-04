@@ -15,6 +15,7 @@ local timers = {}
 ---@param bufnr integer
 local function setup_percent_jump(bufnr)
   vim.keymap.set("n", "%", function()
+    local count = vim.v.count -- 0 when no count given
     local row = vim.api.nvim_win_get_cursor(0)[1] - 1 -- 0-indexed
     local region_list = vim.b[bufnr].region_list
     if region_list then
@@ -28,15 +29,23 @@ local function setup_percent_jump(bufnr)
         end
       end
     end
-    -- Not on a region marker: fall through to matchit or built-in %
-    if vim.fn.maparg("<Plug>MatchitNormalForward", "n") ~= "" then
+    -- Not on a region marker: defer to whatever % means globally (vim-matchup,
+    -- matchit, a user mapping, or built-in). Temporarily drop our buffer-local
+    -- override so maparg resolves the underlying mapping, then restore it.
+    vim.keymap.del("n", "%", { buffer = bufnr })
+    local under = vim.fn.maparg("%", "n", false, true)
+    setup_percent_jump(bufnr)
+    local prefix = count > 0 and tostring(count) or ""
+    if under.callback then
+      under.callback()
+    elseif under.rhs and under.rhs ~= "" then
       vim.api.nvim_feedkeys(
-        vim.api.nvim_replace_termcodes("<Plug>MatchitNormalForward", true, true, true),
-        "n", true)
+        vim.api.nvim_replace_termcodes(prefix .. under.rhs, true, true, true),
+        under.noremap == 1 and "n" or "m", false)
     else
-      vim.cmd("normal! %")
+      vim.cmd("normal! " .. prefix .. "%")
     end
-  end, { buffer = bufnr, desc = "% region-aware: jumps #region<->#endregion, falls through to matchit" })
+  end, { buffer = bufnr, desc = "% region-aware: jumps #region<->#endregion, falls through to the underlying %" })
 end
 M.setup_percent_jump = setup_percent_jump
 
